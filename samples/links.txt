@@ -1,0 +1,4 @@
+normal_text_sample.mp4,https://tib.flowcenter.de/mfc/medialink/3/decb87db53593fcc1e569b30a7bc5713bfe17b997518039ef2670c86d3bc38c443/YouthMappers_Validation_Hub_HEa4bKnpgW8.mp4
+chalk_on_green_board_equations.mp4,https://tib.flowcenter.de/mfc/medialink/3/de0f70599f6da960241eaf59a3361eadf889b5c063a401ead7c5aa6c28b37910af/201901301104-Champion_lrv.mp4
+handwritten_text_chalk_on_green_board.mp4,https://tib.flowcenter.de/mfc/medialink/3/decf85a2e5cde35d774f9b47441a573cbed194d595e4bce770019c1855dc1be57e/201911051545-Kjuchukova_lrv.mp4
+lecture_videos.zip,http://cdn.iiit.ac.in/cdn/preon.iiit.ac.in/~kartik/IIIT-CVid.zip
