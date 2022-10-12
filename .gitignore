@@ -2,3 +2,5 @@ samples/*
 !samples/links.txt
 __pycache__
 *.pth
+*.env
+work_dirs/*

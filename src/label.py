@@ -1,75 +1,142 @@
 from pathlib import Path
-import timeit
 import mmcv.video
 import mmcv
 from tqdm import tqdm
 from export.str_writer import SubtitleWriter
-from itertools import product
-from mmocr.ocr import MMOCR
+from dotenv import load_dotenv
 import os
+import argparse
+from itertools import product
+from pipelines.inference_pipeline import OCRPipeline
+from pipelines.test_pipeline import TestPipeline
+import logging
 
-timeit.template = """
-def inner(_it, _timer{init}):
-    {setup}
-    _t0 = _timer()
-    for _i in _it:
-        retval = {stmt}
-    _t1 = _timer()
-    return _t1 - _t0, retval
-"""
+load_dotenv()
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='Test (and eval) a model')
+    parser.add_argument(
+        'mode',
+        help='What mode to run the script in. Can be either "infer" or "test"',
+        choices=['test', 'infer'],
+        default='infer'
+    )
+    parser.add_argument(
+        'det_model_name',
+        default='DBPP_r50',
+        help='Detection model names seperated by comma.',
+    )
+    parser.add_argument(
+        'rec_model_name',
+        default='MASTER',
+        help='Recognition model name seperated by comma.',
+    )
+    parser.add_argument(
+        'video_path',
+        nargs='*',
+        default='samples/normal_text_sample.mp4',
+        help='Relative video paths. One or multiple paths maybe specified.',
+    )
+    parser.add_argument(
+        '--batch-size',
+        default=1,
+        help='Batch size of processd images. (Decrease this if you get out of memory errors)',
+    )
+    parser.add_argument(
+        '--inference-fps',
+        default=2,
+        help='Number of frames per one second of video to be processed.',
+    )
+    args = parser.parse_args()
+    return args
 
-class OCRPipeline:
-    def __init__(self, rec_model = 'SATRN', det_model = 'DBPP_r50', **kwargs):
-        self.configs_dir = os.environ['MMOCR_HOME']+'/configs' if 'MMOCR_HOME' in os.environ else './configs'
-        self.ocr = MMOCR(recog=rec_model, det=det_model, config_dir=self.configs_dir, **kwargs)
-
-    def __call__(self, img):
-        try:
-            return self.ocr.readtext(img)
-        except:
-            return []
-
-def main():
+def inference(args):
     # configuration
-    video_path = 'samples/normal_text_sample.mp4'
-    batch_size = 4 # how many elements to process at a time
-    FPS = 2 # number of frames per second of video to process
-    det_model = 'DBPP_r50' # name of detection model to use
-    rec_model = 'SATRN' # name of reognition model to use
+    video_path = args.video_path
+    batch_size = args.batch_size # how many elements to process at a time
+    inference_fps = args.inference_fps # number of frames per second of video to process
+    det_model = args.det_model_name # name of detection model to use
+    rec_model = args.rec_model_name # name of reognition model to use
     absolute_video_path = Path.cwd()/video_path
     absolute_subtitle_path = absolute_video_path.parent / f'{absolute_video_path.stem}__{det_model}__{rec_model}.srt'
+    visualization_out_path = absolute_video_path.parent / f'{absolute_video_path.stem}_images'
+    not visualization_out_path.exists() and os.mkdir(visualization_out_path)
     
     # read video
     reader = mmcv.video.VideoReader(video_path)
-    print(f'Processing {video_path} : \nFrames:{reader.frame_cnt} \nFPS: {reader.fps} \nWidth: {reader.width}px \nHeight: {reader.height}px')
+    print(f'Processing {video_path} : \nFrames:{reader.frame_cnt} \nFPS: {reader.fps} \nWidth: {reader.width}px \nHeight: {reader.height}px\n\n\n')
     
     # define OCR pipeline
-    ocr = OCRPipeline(
+    pipeline = OCRPipeline(
         det_model=det_model,
-        det_ckpt='/home/anis/Documents/AI/ML/OCR/educational_video_ocr/dbnetpp_resnet50-dcnv2_fpnc_epoch_20.pth',
-        rec_model=rec_model,
-        recog_ckpt='/home/anis/Documents/AI/ML/OCR/educational_video_ocr/SATRN_lvdb_epoch_2.pth',
+        rec_model=rec_model
     )
     
     # define the frame batches and run them through the pipeline
-    skip_frames = int(reader.fps // FPS)
+    skip_frames = int(reader.fps // inference_fps)
     frame_indexes = range(0, reader.frame_cnt, skip_frames)
     arr_chunks = [(i, i + batch_size)
                 for i in range(0, len(frame_indexes), batch_size)]
     
-    print(f'Using text det model: {det_model}\nUsing text rec model: {rec_model}\nProcessing {FPS} frames per one second of video\nBatch Size: {batch_size}')
+    print(f'Using text det model: {det_model}\nUsing text rec model: {rec_model}\nProcessing {inference_fps} frames per one second of video\nBatch Size: {batch_size}\n\n\n')
 
     with open(absolute_subtitle_path, mode='w+') as f:
-        sub = SubtitleWriter(f, FPS)
+        sub = SubtitleWriter(f, inference_fps)
         for start, end in tqdm(arr_chunks):
             batch = [reader[i] for i in frame_indexes[start:end]]
-            result = ocr(batch)
+            result = pipeline(batch, show=False, img_out_dir='')
             for i, res in enumerate(result):
-                sub.addSubtitle(res['rec_texts'], start+i)
+                sub.addSubtitle('\n'.join([e['text'] for e in res]), start+i)
         sub.finish()
+        
+def test(args):
+    pipeline = TestPipeline(
+        det=args.det_model_name,
+        recog=args.rec_model_name,
+        batch_size=args.batch_size,
+    )
+    metrics = pipeline.start_test()
+    pipeline.write_metrics()
+    print(metrics)
 
-
+def run_fn_with_args(fn, args):
+    while True:
+        try:
+            return fn(args)
+        except Exception as e:
+            if 'out of memory' in str(e) and args.batch_size > 1:
+                args.batch_size -= 1
+                print(f'[ERROR] Cuda out of memory error, retrying with batch size {args.batch_size}')
+            else:
+                print(f'[ERROR] Error occured while running {fn} on with {det} and {rec}')
+                logging.error(e, exc_info=True)
+                return None
 
 if __name__ == '__main__':
-    main()
+    args = parse_args()
+    
+    # if multiple models have been chosen
+    det_models = args.det_model_name.split(',')
+    rec_models = args.rec_model_name.split(',')
+    
+    if args.mode == 'infer':    
+        for det, rec in product(det_models, rec_models):
+            args.det_model_name = det
+            args.rec_model_name = rec
+            print (f"""\n\n\n\n{'*':*^74}\n*{'Testing':^72}*\n*{det:>35}--{rec:<35}*\n{'*':*^74}""")
+            run_fn_with_args(inference, args)
+    elif args.mode == 'test':
+        # Pad the list with the minimum leingth with None
+        min_len = min(len(det_models), len(rec_models))
+        if len(det_models) < min_len:
+            det_models.extend([None for _ in range(len(rec_models)-min_len)])
+        if len(rec_models) < min_len:
+            rec_models.extend([None for _ in range(len(det_models)-min_len)])
+            
+        for det, rec in zip(det_models, rec_models):
+            args.det_model_name = det
+            args.rec_model_name = rec
+            print (f"""\n\n\n\n{'*':*^74}\n*{'Testing':^72}*\n*{det:>35}--{rec:<35}*\n{'*':*^74}""")
+            run_fn_with_args(test, args)
+    else:
+        raise f'Uknown mode. Expected "infer" or "test" Got {args.mode}'
