@@ -13,6 +13,7 @@ from mmocr.datasets import OCRDataset
 import time
 import torch
 import timeit
+from .hmean_metric import CustomHmeanMetric
 
 timeit.template = """
 def inner(_it, _timer{init}):
@@ -119,7 +120,7 @@ class TestPipeline:
                                 osp.splitext(osp.basename(model_config['config']))[0])
 
         cfg.load_from = model_config['ckpt']
-        cfg.log_level = 'ERROR'
+        cfg.log_level = 'CRITICAL'
 
         dump_metric = dict(
             type='DumpResults',
@@ -128,7 +129,8 @@ class TestPipeline:
                 f'{osp.basename(cfg.load_from)}_predictions.pkl'))
 
         stupid_metric = dict(type='TestingPipelineMetric')
-        
+        custom_hmean_metric = dict(type='CustomHmeanMetric', prefix='LVDB')
+                
         cfg.test_dataloader.batch_size = self.batch_size
 
         if isinstance(cfg.test_evaluator, (list, tuple)):
@@ -137,14 +139,24 @@ class TestPipeline:
                 eva['prefix' if det else 'dataset_prefixes']= 'LVDB' if det else ['LVDB']
             cfg.test_evaluator.append(dump_metric)
             cfg.test_evaluator.append(stupid_metric)
+            if det:
+                # remove old hmean iou metric
+                cfg.test_evaluator = [e for e in cfg.test_evaluator if e['type'] != 'HmeanIOUMetric']
+                cfg.test_evaluator.append(custom_hmean_metric)
         elif isinstance(cfg.test_evaluator, Dict) and 'metrics' in cfg.test_evaluator and isinstance(cfg.test_evaluator.metrics, list):
             cfg.test_evaluator['prefix' if det else 'dataset_prefixes']= 'LVDB' if det else ['LVDB']
             cfg.test_evaluator.metrics.append(dump_metric)
             cfg.test_evaluator.metrics.append(stupid_metric)
+            if det:
+                # remove old hmean iou metric
+                cfg.test_evaluator.metrics = [e for e in cfg.test_evaluator.metrics if e['type'] != 'HmeanIOUMetric']
+                cfg.test_evaluator.metrics.append(custom_hmean_metric)
         else:
             cfg.test_evaluator['prefix' if det else 'dataset_prefixes']= 'LVDB' if det else ['LVDB']
-            cfg.test_evaluator = [
-                cfg.test_evaluator, dump_metric, stupid_metric]
+            cfg.test_evaluator = [ cfg.test_evaluator, dump_metric, stupid_metric]
+            if det:
+                cfg.test_evaluator = [e for e in cfg.test_evaluator if e['type'] != 'HmeanIOUMetric']
+                cfg.test_evaluator.append(custom_hmean_metric)
 
         config = {
             'filepath': config_path,
@@ -182,37 +194,40 @@ class TestPipeline:
             self.metrics['det'] = metrics
             self.metrics['det']['run_time'] = time
             print('Finished text detection')
-            print(self.metrics['det'])
+            # print(self.metrics['det'])
         if self.recog_model_name:
             # runt the recognition model on the result of the detection model
             time, metrics = timeit.timeit(self.recog_runner.test, number=1)
             self.metrics['recog'] = metrics
             self.metrics['recog']['run_time'] = time
             print('Finished text recognition')
-            print(self.metrics['recog'])
+            # print(self.metrics['recog'])
         return self.metrics
 
     def write_metrics(self):
         if self.det_model_name:
             with open(self.det_metric_output_path, mode='a+') as det_output:
                 header = ''
-                if not det_output.read():
-                    header = 'model_name,lvdb_precision,lvdb_recall,lvdb_hmean,lvdb_IOU_threshold,FPS,number_test_samples,run_time,config_path,ckpt,timestamp'
-                precision = round(self.metrics['det']['LVDB/precision'], 4)
-                recall = round(self.metrics['det']['LVDB/recall'], 4)
-                hmean = round(self.metrics['det']['LVDB/hmean'], 4)
+                if os.stat(self.det_metric_output_path).st_size == 0:
+                    header = 'model_name,lvdb_.5_iou_thresh_precision,lvdb_.5_iou_thresh_recall,lvdb_.5_iou_thresh_hmean,lvdb_avg_precision,lvdb_avg_recall,lvdb_avg_hmean,FPS,number_test_samples,run_time,config_path,ckpt,timestamp'
+                precision = round(self.metrics['det']['LVDB/0.5_IOU_THRESH_precision'], 4)
+                recall = round(self.metrics['det']['LVDB/0.5_IOU_THRESH_recall'], 4)
+                hmean = round(self.metrics['det']['LVDB/0.5_IOU_THRESH_hmean'], 4)
+                avg_precision = round(self.metrics['det']['LVDB/avg_precision'], 4)
+                avg_recall = round(self.metrics['det']['LVDB/avg_recall'], 4)
+                avg_hmean = round(self.metrics['det']['LVDB/avg_hmean'], 4)
                 run_time = self.metrics['det']['run_time']
                 num_samples = len(self.det_runner.test_dataloader.dataset)
                 FPS = int(num_samples // run_time)
-                iou_thresh = .5
                 config_path = self.det_model_config['filepath']
                 ckpt = self.det_model_config['ckpt']
-                line = f'{self.det_model_name},{precision},{recall},{hmean},{iou_thresh},{FPS},{num_samples},{run_time},{config_path},{ckpt},{self.timestamp}'
-                det_output.write(f'{header}\n{line}\n')
+                line = f'{self.det_model_name},{precision},{recall},{hmean},{avg_precision},{avg_recall},{avg_hmean},{FPS},{num_samples},{run_time},{config_path},{ckpt},{self.timestamp}'
+                if header: det_output.write(f'{header}\n')
+                det_output.write(f'{line}\n')
         if self.recog_model_name:
             with open(self.rec_metric_output_path, mode='a+') as recog_output:
                 header = ''
-                if not recog_output.read():
+                if os.stat(self.rec_metric_output_path).st_size == 0:
                     header = 'model_name,lvdb_word_acc,lvdb_word_acc_ignore_case,lvdb_word_acc_ignore_case_symbol,lvdb_char_recall,lvdb_char_precision,FPS,number_test_samples,run_time,config_path,ckpt,timestamp'
                 word_acc = round(self.metrics['recog']['LVDB/recog/word_acc'], 2)
                 word_acc_ignore_case = round(self.metrics['recog']['LVDB/recog/word_acc_ignore_case'], 2)
@@ -225,4 +240,5 @@ class TestPipeline:
                 config_path = self.recog_model_config['filepath']
                 ckpt = self.recog_model_config['ckpt']
                 line = f'{self.recog_model_name},{word_acc},{word_acc_ignore_case},{word_acc_ignore_case_symbol},{char_recall},{char_precision},{FPS},{num_samples},{run_time},{config_path},{ckpt},{self.timestamp}'
-                recog_output.write(f'{header}\n{line}\n')
+                if header: recog_output.write(f'{header}\n')
+                recog_output.write(f'{line}\n')

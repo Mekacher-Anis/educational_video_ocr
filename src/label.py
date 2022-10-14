@@ -10,6 +10,7 @@ from itertools import product
 from pipelines.inference_pipeline import OCRPipeline
 from pipelines.test_pipeline import TestPipeline
 import logging
+from pprint import pprint
 
 load_dotenv()
 
@@ -28,7 +29,7 @@ def parse_args():
     )
     parser.add_argument(
         'rec_model_name',
-        default='MASTER',
+        default='SATRN',
         help='Recognition model name seperated by comma.',
     )
     parser.add_argument(
@@ -48,6 +49,7 @@ def parse_args():
         help='Number of frames per one second of video to be processed.',
     )
     args = parser.parse_args()
+    args.batch_size = int(args.batch_size)
     return args
 
 def inference(args):
@@ -96,8 +98,8 @@ def test(args):
         batch_size=args.batch_size,
     )
     metrics = pipeline.start_test()
+    pprint(metrics)
     pipeline.write_metrics()
-    print(metrics)
 
 def run_fn_with_args(fn, args):
     while True:
@@ -127,16 +129,16 @@ if __name__ == '__main__':
             run_fn_with_args(inference, args)
     elif args.mode == 'test':
         # Pad the list with the minimum leingth with None
-        min_len = min(len(det_models), len(rec_models))
-        if len(det_models) < min_len:
-            det_models.extend([None for _ in range(len(rec_models)-min_len)])
-        if len(rec_models) < min_len:
-            rec_models.extend([None for _ in range(len(det_models)-min_len)])
+        max_len = max(len(det_models), len(rec_models))
+        if len(det_models) < max_len:
+            det_models.extend([None for _ in range(max_len-len(det_models))])
+        if len(rec_models) < max_len:
+            rec_models.extend([None for _ in range(max_len-len(rec_models))])
             
         for det, rec in zip(det_models, rec_models):
             args.det_model_name = det
             args.rec_model_name = rec
-            print (f"""\n\n\n\n{'*':*^74}\n*{'Testing':^72}*\n*{det:>35}--{rec:<35}*\n{'*':*^74}""")
+            print (f"""\n\n\n\n{'*':*^74}\n*{'Testing':^72}*\n*{det or 'None':>35}--{rec or 'None':<35}*\n{'*':*^74}""")
             run_fn_with_args(test, args)
     else:
         raise f'Uknown mode. Expected "infer" or "test" Got {args.mode}'

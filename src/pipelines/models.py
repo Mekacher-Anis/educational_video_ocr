@@ -103,30 +103,19 @@ model_dict = {
             },
             'SAR': {
                 'config': 'textrecog/sar/sar_resnet31_parallel-decoder_5e_lvdb.py',
-                'ckpt':
-                'textrecog/sar/sar_resnet31_parallel-decoder_5e_st-sub_mj-sub_sa_real/sar_resnet31_parallel-decoder_5e_st-sub_mj-sub_sa_real_20220915_171910-04eb4e75.pth'  # noqa: E501
+                'ckpt': 'https://sf.anismk.de/static/textrecog/sar_resnet31_parallel-decoder_5e_lvdb_epoch_5.pth'  # noqa: E501
             },
             'NRTR_1/16-1/8': {
-                'config':
-                'textrecog/'
-                'nrtr/nrtr_resnet31-1by16-1by8_6e_st_mj.py',
-                'ckpt':
-                'textrecog/'
-                'nrtr/nrtr_resnet31-1by16-1by8_6e_st_mj/nrtr_resnet31-1by16-1by8_6e_st_mj_20220920_143358-43767036.pth'  # noqa: E501
+                'config': 'textrecog/nrtr/nrtr_resnet31-1by16-1by8_6e_lvdb.py',
+                'ckpt': 'https://sf.anismk.de/static/textrecog/nrtr_resnet31-1by16-1by8_6e_lvdb_epoch_2.pth'  # noqa: E501
             },
             'NRTR_1/8-1/4': {
-                'config':
-                'textrecog/'
-                'nrtr/nrtr_resnet31-1by8-1by4_6e_st_mj.py',
-                'ckpt':
-                'textrecog/'
-                'nrtr/nrtr_resnet31-1by8-1by4_6e_st_mj/nrtr_resnet31-1by8-1by4_6e_st_mj_20220916_103322-a6a2a123.pth'  # noqa: E501
+                'config': 'textrecog/nrtr/nrtr_resnet31-1by8-1by4_6e_lvdb.py',
+                'ckpt': 'https://sf.anismk.de/static/textrecog/nrtr_resnet31-1by8-1by4_6e_lvdb_epoch_2.pth'  # noqa: E501
             },
             'RobustScanner': {
                 'config': 'textrecog/robust_scanner/robustscanner_resnet31_5e_lvdb.py',
-                'ckpt':
-                'textrecog/'
-                'robust_scanner/robustscanner_resnet31_5e_st-sub_mj-sub_sa_real/robustscanner_resnet31_5e_st-sub_mj-sub_sa_real_20220915_152447-7fc35929.pth'  # noqa: E501
+                'ckpt': 'https://sf.anismk.de/static/textrecog/robustscanner_resnet31_5e_lvdb_epoch_5.pth'  # noqa: E501
             },
             'SATRN': {
                 'config': 'textrecog/satrn/satrn_shallow_5e_lvdb.py',
