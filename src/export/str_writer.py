@@ -1,9 +1,9 @@
 import io
+from .export_base import ExportBase
 
-
-class SubtitleWriter:
+class SubtitleWriter(ExportBase):
     def __init__(self, writer: io.TextIOWrapper, fps: float):
-        self.fd = writer
+        super().__init__(writer=writer)
         self.fps = fps
         self.spf = 1/fps * 1000 # seconds per frame
         self.subtitleNum = 1
@@ -26,7 +26,7 @@ class SubtitleWriter:
         res += '\n\n'
         self.fd.write(res)
     
-    def addSubtitle(self, resultText, frameNum):
+    def write(self, resultText, frameNum):
         subtitleText = ' '.join(resultText)
         if self.lastSubtitleText is not None and subtitleText != self.lastSubtitleText:
             # write old subtitle to file

@@ -29,7 +29,7 @@ def parse_args():
     )
     parser.add_argument(
         'rec_model_name',
-        default='SATRN',
+        default='MASTER',
         help='Recognition model name seperated by comma.',
     )
     parser.add_argument(
@@ -41,15 +41,16 @@ def parse_args():
     parser.add_argument(
         '--batch-size',
         default=1,
+        type=int,
         help='Batch size of processd images. (Decrease this if you get out of memory errors)',
     )
     parser.add_argument(
         '--inference-fps',
         default=2,
+        type=float,
         help='Number of frames per one second of video to be processed.',
     )
     args = parser.parse_args()
-    args.batch_size = int(args.batch_size)
     return args
 
 def inference(args):
@@ -80,7 +81,7 @@ def inference(args):
     arr_chunks = [(i, i + batch_size)
                 for i in range(0, len(frame_indexes), batch_size)]
     
-    print(f'Using text det model: {det_model}\nUsing text rec model: {rec_model}\nProcessing {inference_fps} frames per one second of video\nBatch Size: {batch_size}\n\n\n')
+    print(f'[INFO] Using text det model: {det_model}\n[INFO] Using text rec model: {rec_model}\n[INFO] Processing {inference_fps} frames per one second of video\n[INFO] Batch Size: {batch_size}\n\n\n')
 
     with open(absolute_subtitle_path, mode='w+') as f:
         sub = SubtitleWriter(f, inference_fps)
@@ -88,8 +89,10 @@ def inference(args):
             batch = [reader[i] for i in frame_indexes[start:end]]
             result = pipeline(batch, show=False, img_out_dir='')
             for i, res in enumerate(result):
-                sub.addSubtitle('\n'.join([e['text'] for e in res]), start+i)
+                sub.write('\n'.join([e['text'] for e in res]), start+i)
         sub.finish()
+    
+    pipeline.print_metrics()
         
 def test(args):
     pipeline = TestPipeline(
@@ -125,7 +128,7 @@ if __name__ == '__main__':
         for det, rec in product(det_models, rec_models):
             args.det_model_name = det
             args.rec_model_name = rec
-            print (f"""\n\n\n\n{'*':*^74}\n*{'Testing':^72}*\n*{det:>35}--{rec:<35}*\n{'*':*^74}""")
+            print (f"""\n\n\n\n{'*':*^74}\n*{'Inference':^72}*\n*{det:>35}--{rec:<35}*\n{'*':*^74}""")
             run_fn_with_args(inference, args)
     elif args.mode == 'test':
         # Pad the list with the minimum leingth with None
