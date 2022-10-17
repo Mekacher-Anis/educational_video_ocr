@@ -91,8 +91,8 @@ class TestPipeline:
             self.recog_runner, self.recog_model_config = self._build_from_cfg(recog, False)
 
         self.metrics = {}
-        self.det_metric_output_path = './work_dirs/det_model_metrics.csv'
-        self.rec_metric_output_path = './work_dirs/rec_model_metrics.csv'
+        self.det_metric_output_path = './work_dirs/det'+('_cor' if self.run_err_correction else '')+'_model_metrics.csv'
+        self.rec_metric_output_path = './work_dirs/rec'+('_cor' if self.run_err_correction else '')+'_model_metrics.csv'
 
     def _build_from_cfg(self, model_name: str, det: bool):
         # load config
@@ -174,6 +174,8 @@ class TestPipeline:
             return models.model_dict[model_name]
 
     def start_test(self):
+        if self.run_err_correction:
+            print('[INFO] Running test with error correction on')
         if self.det_model_name:
             # run the detection model
             print("\n******** RUNNING DETECTION ********\n")

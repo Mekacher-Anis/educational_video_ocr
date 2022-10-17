@@ -50,6 +50,12 @@ def parse_args():
         type=float,
         help='Number of frames per one second of video to be processed.',
     )
+    parser.add_argument(
+        '--error-correction',
+        action='store_true',
+        default=False,
+        help='Run error correction after text recognition.'
+    )
     args = parser.parse_args()
     return args
 
@@ -72,7 +78,8 @@ def inference(args):
     # define OCR pipeline
     pipeline = OCRPipeline(
         det_model=det_model,
-        rec_model=rec_model
+        rec_model=rec_model,
+        run_err_correction=args.error_correction
     )
     
     # define the frame batches and run them through the pipeline
@@ -99,6 +106,7 @@ def test(args):
         det=args.det_model_name,
         recog=args.rec_model_name,
         batch_size=args.batch_size,
+        run_err_correction=args.error_correction
     )
     metrics = pipeline.start_test()
     pprint(metrics)
