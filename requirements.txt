@@ -2,3 +2,4 @@ mmocr
 mmcv
 mmengine
 python-dotenv
+symspellpy
