@@ -56,7 +56,16 @@ def parse_args():
         default=False,
         help='Run error correction after text recognition.'
     )
+    parser.add_argument(
+        '--launcher',
+        choices=['none', 'pytorch', 'slurm', 'mpi'],
+        default='none',
+        help='Job launcher'
+    )
+    parser.add_argument('--local_rank', type=int, default=0)
     args = parser.parse_args()
+    if 'LOCAL_RANK' not in os.environ:
+        os.environ['LOCAL_RANK'] = str(args.local_rank)
     return args
 
 def inference(args):
@@ -79,7 +88,8 @@ def inference(args):
     pipeline = OCRPipeline(
         det_model=det_model,
         rec_model=rec_model,
-        run_err_correction=args.error_correction
+        run_err_correction=args.error_correction,
+        launcher=args.launcher
     )
     
     # define the frame batches and run them through the pipeline
@@ -106,7 +116,8 @@ def test(args):
         det=args.det_model_name,
         recog=args.rec_model_name,
         batch_size=args.batch_size,
-        run_err_correction=args.error_correction
+        run_err_correction=args.error_correction,
+        launcher=args.launcher
     )
     metrics = pipeline.start_test()
     pprint(metrics)
