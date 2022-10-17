@@ -126,8 +126,8 @@ if __name__ == '__main__':
     
     if args.mode == 'infer':    
         for det, rec in product(det_models, rec_models):
-            args.det_model_name = det
-            args.rec_model_name = rec
+            args.det_model_name = det if det != 'None' else None
+            args.rec_model_name = rec if rec != 'None' else None
             print (f"""\n\n\n\n{'*':*^74}\n*{'Inference':^72}*\n*{det:>35}--{rec:<35}*\n{'*':*^74}""")
             run_fn_with_args(inference, args)
     elif args.mode == 'test':
@@ -139,8 +139,8 @@ if __name__ == '__main__':
             rec_models.extend([None for _ in range(max_len-len(rec_models))])
             
         for det, rec in zip(det_models, rec_models):
-            args.det_model_name = det
-            args.rec_model_name = rec
+            args.det_model_name = det if det != 'None' else None
+            args.rec_model_name = rec if rec != 'None' else None
             print (f"""\n\n\n\n{'*':*^74}\n*{'Testing':^72}*\n*{det or 'None':>35}--{rec or 'None':<35}*\n{'*':*^74}""")
             run_fn_with_args(test, args)
     else:

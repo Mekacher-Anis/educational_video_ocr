@@ -1,15 +1,19 @@
 from pprint import pprint
+from post_processing.dict_correct import SymSpellCorrect
+
+from post_processing.misspelling_detection import MisspellingDetection
 from . import models
 import os
 import os.path as osp
-from typing import Callable, Dict, List, Optional, OrderedDict, Sequence, Union
+from typing import Dict, Sequence, Union
 from mmengine.config import Config
-from mmengine.registry import RUNNERS
+from mmengine.registry import RUNNERS, MODELS
 from mmengine.runner import Runner
-from mmengine.evaluator import BaseMetric
 from mmocr.utils import register_all_modules
-from mmocr.registry import METRICS, DATASETS, TRANSFORMS
-from mmocr.datasets import OCRDataset
+from mmocr.models.textrecog.postprocessors import AttentionPostprocessor
+from mmocr.models.common.dictionary import Dictionary
+from mmocr.structures import TextRecogDataSample
+from mmengine.structures import LabelData
 import time
 import torch
 import timeit
@@ -24,47 +28,25 @@ def inner(_it, _timer{init}):
     _t1 = _timer()
     return _t1 - _t0, retval
 """
-
-
-@METRICS.register_module()
-class TestingPipelineMetric(BaseMetric):
-    def __init__(self,
-                 collect_device: str = 'cpu') -> None:
-        super().__init__(collect_device=collect_device, prefix='')
-
-        print('Stupid Metric has been initialized')
-
-    def process(self, data_batch: Sequence[Dict],
-                data_samples: Sequence[Dict]) -> None:
-        # for data in data_samples:
-        #     pprint(data)
-        #     break
-        # print('Process on TestingPipelineMetric has been called')
-        # exit(0)
-        self.results.append({})
-
-    def compute_metrics(self, results: List[Dict]) -> Dict:
-        print('Compute Metrics on TestingPipelineMetric has been called.')
-        return {}
-
-
-@DATASETS.register_module()
-class CustomTestingPipelineDataset(OCRDataset):
-    def __init__(self,
-                 ann_file: str = '',
-                 metainfo: Optional[dict] = None,
-                 data_root: str = '',
-                 data_prefix: dict = ...,
-                 filter_cfg: Optional[dict] = None,
-                 indices: Optional[Union[int, Sequence[int]]] = None,
-                 serialize_data: bool = True,
-                 pipeline: List[Union[dict, Callable]] = ...,
-                 test_mode: bool = False,
-                 lazy_init: bool = False,
-                 max_refetch: int = 1000
-                 ):
-        super().__init__(ann_file, metainfo, data_root, data_prefix, filter_cfg,
-                         indices, serialize_data, pipeline, test_mode, lazy_init, max_refetch)
+@MODELS.register_module()
+class CustomTextCorrectionPostprocessor(AttentionPostprocessor):
+    def __init__(self, dictionary: Union[Dictionary, Dict], max_seq_len: int = 40, ignore_chars: Sequence[str] = ['padding'], **kwargs) -> None:
+        super().__init__(dictionary, max_seq_len, ignore_chars, **kwargs)
+        self.error_detection = MisspellingDetection(lang=kwargs.get('lang', 'en'))
+        self.error_correction = SymSpellCorrect(lang=kwargs.get('lang', 'en'))
+        
+    def __call__(self, probs: torch.Tensor, data_samples: Sequence[TextRecogDataSample]) -> Sequence[TextRecogDataSample]:
+        data_samples =  super().__call__(probs, data_samples)
+        batch_size = probs.size(0)
+        for idx in range(batch_size):
+            text = data_samples[idx].pred_text.item
+            if not self.error_detection.check(text):
+                candidates = self.error_correction.get_candidates(text)
+                if candidates:
+                    # print(f'{text} -> {candidates[0].term}')
+                    data_samples[idx].pred_text.item = candidates[0].term
+        return data_samples
+    
 
 
 class TestPipeline:
@@ -77,6 +59,8 @@ class TestPipeline:
                  det: str = None,
                  recog: str = None,
                  batch_size: int = 1,
+                 run_err_correction = True,
+                 lang:str='en',
                  launcher: str = 'none',
                  **kwargs) -> None:
         # register all modules in mmocr into the registries
@@ -92,6 +76,8 @@ class TestPipeline:
         self.det_model_name = det
         self.recog_model_name = recog
         self.batch_size = batch_size
+        self.lang = lang
+        self.run_err_correction = run_err_correction
 
         self.work_dir_base = osp.join(
             './work_dirs', f'{self.det_model_name}___{self.recog_model_name}', self.timestamp)
@@ -128,17 +114,18 @@ class TestPipeline:
                 cfg.work_dir,
                 f'{osp.basename(cfg.load_from)}_predictions.pkl'))
 
-        stupid_metric = dict(type='TestingPipelineMetric')
         custom_hmean_metric = dict(type='CustomHmeanMetric', prefix='LVDB')
                 
         cfg.test_dataloader.batch_size = self.batch_size
+        
+        if not det and self.run_err_correction:
+            cfg.model.decoder.postprocessor = dict(type='CustomTextCorrectionPostprocessor', lang=self.lang)
 
         if isinstance(cfg.test_evaluator, (list, tuple)):
             cfg.test_evaluator = list(cfg.test_evaluator)
             for eva in cfg.test_evaluator:
                 eva['prefix' if det else 'dataset_prefixes']= 'LVDB' if det else ['LVDB']
             cfg.test_evaluator.append(dump_metric)
-            cfg.test_evaluator.append(stupid_metric)
             if det:
                 # remove old hmean iou metric
                 cfg.test_evaluator = [e for e in cfg.test_evaluator if e['type'] != 'HmeanIOUMetric']
@@ -146,14 +133,13 @@ class TestPipeline:
         elif isinstance(cfg.test_evaluator, Dict) and 'metrics' in cfg.test_evaluator and isinstance(cfg.test_evaluator.metrics, list):
             cfg.test_evaluator['prefix' if det else 'dataset_prefixes']= 'LVDB' if det else ['LVDB']
             cfg.test_evaluator.metrics.append(dump_metric)
-            cfg.test_evaluator.metrics.append(stupid_metric)
             if det:
                 # remove old hmean iou metric
                 cfg.test_evaluator.metrics = [e for e in cfg.test_evaluator.metrics if e['type'] != 'HmeanIOUMetric']
                 cfg.test_evaluator.metrics.append(custom_hmean_metric)
         else:
             cfg.test_evaluator['prefix' if det else 'dataset_prefixes']= 'LVDB' if det else ['LVDB']
-            cfg.test_evaluator = [ cfg.test_evaluator, dump_metric, stupid_metric]
+            cfg.test_evaluator = [ cfg.test_evaluator, dump_metric ]
             if det:
                 cfg.test_evaluator = [e for e in cfg.test_evaluator if e['type'] != 'HmeanIOUMetric']
                 cfg.test_evaluator.append(custom_hmean_metric)
