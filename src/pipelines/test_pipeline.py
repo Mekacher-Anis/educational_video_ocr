@@ -176,17 +176,17 @@ class TestPipeline:
     def start_test(self):
         if self.det_model_name:
             # run the detection model
+            print("\n******** RUNNING DETECTION ********\n")
             time, metrics = timeit.timeit(self.det_runner.test, number=1)
             self.metrics['det'] = metrics
             self.metrics['det']['run_time'] = time
-            print('Finished text detection')
             # print(self.metrics['det'])
         if self.recog_model_name:
             # runt the recognition model on the result of the detection model
+            print("\n******* RUNNING RECOGNITION *******\n")
             time, metrics = timeit.timeit(self.recog_runner.test, number=1)
             self.metrics['recog'] = metrics
             self.metrics['recog']['run_time'] = time
-            print('Finished text recognition')
             # print(self.metrics['recog'])
         return self.metrics
 
