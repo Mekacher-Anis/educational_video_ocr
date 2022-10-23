@@ -42,6 +42,9 @@ class CustomTextCorrectionPostprocessor(AttentionPostprocessor):
             text = data_samples[idx].pred_text.item
             if not self.error_detection.check(text):
                 candidates = self.error_correction.get_candidates(text)
+                # print(text)
+                # for c in candidates:
+                #     print(f'\t{c.term}\t{c.count}')
                 if candidates:
                     # print(f'{text} -> {candidates[0].term}')
                     data_samples[idx].pred_text.item = candidates[0].term
@@ -197,7 +200,7 @@ class TestPipeline:
             with open(self.det_metric_output_path, mode='a+') as det_output:
                 header = ''
                 if os.stat(self.det_metric_output_path).st_size == 0:
-                    header = 'model_name,lvdb_.5_iou_thresh_precision,lvdb_.5_iou_thresh_recall,lvdb_.5_iou_thresh_hmean,lvdb_avg_precision,lvdb_avg_recall,lvdb_avg_hmean,FPS,number_test_samples,run_time,config_path,ckpt,timestamp'
+                    header = 'model_name,lvdb_.5_iou_thresh_precision,lvdb_.5_iou_thresh_recall,lvdb_.5_iou_thresh_hmean,lvdb_avg_precision,lvdb_avg_recall,lvdb_avg_hmean,FPS,batch_size,number_test_samples,run_time,config_path,ckpt,timestamp'
                 precision = round(self.metrics['det']['LVDB/0.5_IOU_THRESH_precision'], 4)
                 recall = round(self.metrics['det']['LVDB/0.5_IOU_THRESH_recall'], 4)
                 hmean = round(self.metrics['det']['LVDB/0.5_IOU_THRESH_hmean'], 4)
@@ -209,24 +212,27 @@ class TestPipeline:
                 FPS = int(num_samples // run_time)
                 config_path = self.det_model_config['filepath']
                 ckpt = self.det_model_config['ckpt']
-                line = f'{self.det_model_name},{precision},{recall},{hmean},{avg_precision},{avg_recall},{avg_hmean},{FPS},{num_samples},{run_time},{config_path},{ckpt},{self.timestamp}'
+                line = f'{self.det_model_name},{precision},{recall},{hmean},{avg_precision},{avg_recall},{avg_hmean},{FPS},{self.batch_size},{num_samples},{run_time},{config_path},{ckpt},{self.timestamp}'
                 if header: det_output.write(f'{header}\n')
                 det_output.write(f'{line}\n')
         if self.recog_model_name:
             with open(self.rec_metric_output_path, mode='a+') as recog_output:
                 header = ''
                 if os.stat(self.rec_metric_output_path).st_size == 0:
-                    header = 'model_name,lvdb_word_acc,lvdb_word_acc_ignore_case,lvdb_word_acc_ignore_case_symbol,lvdb_char_recall,lvdb_char_precision,FPS,number_test_samples,run_time,config_path,ckpt,timestamp'
-                word_acc = round(self.metrics['recog']['LVDB/recog/word_acc'], 2)
-                word_acc_ignore_case = round(self.metrics['recog']['LVDB/recog/word_acc_ignore_case'], 2)
-                word_acc_ignore_case_symbol = round(self.metrics['recog']['LVDB/recog/word_acc_ignore_case_symbol'], 2)
-                char_recall = round(self.metrics['recog']['LVDB/recog/char_recall'], 2)
-                char_precision = round(self.metrics['recog']['LVDB/recog/char_precision'], 2)
+                    header = 'model_name,1-N.E.D_exact,1-N.E.D_ignore_case,1-N.E.D_ignore_case_symbol,lvdb_word_acc_exact,lvdb_word_acc_ignore_case,lvdb_word_acc_ignore_case_symbol,lvdb_char_recall,lvdb_char_precision,FPS,batch_size,number_test_samples,run_time,config_path,ckpt,timestamp'
+                word_acc = round(self.metrics['recog']['LVDB/recog/word_acc'], 4)
+                word_acc_ignore_case = round(self.metrics['recog']['LVDB/recog/word_acc_ignore_case'], 4)
+                word_acc_ignore_case_symbol = round(self.metrics['recog']['LVDB/recog/word_acc_ignore_case_symbol'], 4)
+                one_minus_NED = round(self.metrics['recog']['LVDB/recog/1-N.E.D_exact'], 4)
+                one_minus_NED_ignore_case = round(self.metrics['recog']['LVDB/recog/1-N.E.D_ignore_case'], 4)
+                one_minus_NED_ignore_case_symbol = round(self.metrics['recog']['LVDB/recog/1-N.E.D_ignore_case_symbol'], 4)
+                char_recall = round(self.metrics['recog']['LVDB/recog/char_recall'], 4)
+                char_precision = round(self.metrics['recog']['LVDB/recog/char_precision'], 4)
                 run_time = self.metrics['recog']['run_time']
                 num_samples = len(self.recog_runner.test_dataloader.dataset)
                 FPS = int(num_samples // run_time)
                 config_path = self.recog_model_config['filepath']
                 ckpt = self.recog_model_config['ckpt']
-                line = f'{self.recog_model_name},{word_acc},{word_acc_ignore_case},{word_acc_ignore_case_symbol},{char_recall},{char_precision},{FPS},{num_samples},{run_time},{config_path},{ckpt},{self.timestamp}'
+                line = f'{self.recog_model_name},{one_minus_NED},{one_minus_NED_ignore_case},{one_minus_NED_ignore_case_symbol},{word_acc},{word_acc_ignore_case},{word_acc_ignore_case_symbol},{char_recall},{char_precision},{FPS},{self.batch_size},{num_samples},{run_time},{config_path},{ckpt},{self.timestamp}'
                 if header: recog_output.write(f'{header}\n')
                 recog_output.write(f'{line}\n')

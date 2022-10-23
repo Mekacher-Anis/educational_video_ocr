@@ -1,5 +1,5 @@
 mmocr
-mmcv
-mmengine
+mmcv>=2.0.0rc1
 python-dotenv
 symspellpy
+tqdm
