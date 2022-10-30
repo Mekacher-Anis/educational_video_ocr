@@ -139,5 +139,9 @@ model_dict = {
             'MASTER': {
                 'config': 'textrecog/master/master_resnet31_5e_lvdb.py',
                 'ckpt': 'https://sf.anismk.de/static/textrecog/master_resnet31_5e_lvdb_epoch_3.pth' # to be updated
+            },
+            'PARSeq': {
+                'config': 'textrecog/parseq/parseq_5e_lvdb.py',
+                'ckpt': 'https://sf.anismk.de/static/textrecog/parseq_5e_ldvb_epoch_2.ckpt' # to be updated
             }
         }
