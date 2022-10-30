@@ -129,8 +129,8 @@ def run_fn_with_args(fn, args):
             return fn(args)
         except Exception as e:
             if 'out of memory' in str(e) and args.batch_size > 1:
-                args.batch_size -= 1
-                print(f'[ERROR] Cuda out of memory error, retrying with batch size {args.batch_size}')
+                args.batch_size -= int(args.batch_size * .1) # decrease by 10%
+                print(f'\n\n[ERROR] Cuda out of memory error, retrying with batch size {args.batch_size}\n\n')
             else:
                 print(f'[ERROR] Error occured while running {fn} on with {det} and {rec}')
                 logging.error(e, exc_info=True)
