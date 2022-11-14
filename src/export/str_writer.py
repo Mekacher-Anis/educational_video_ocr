@@ -27,16 +27,15 @@ class SubtitleWriter(ExportBase):
         self.fd.write(res)
     
     def write(self, resultText, frameNum):
-        subtitleText = ' '.join(resultText)
-        if self.lastSubtitleText is not None and subtitleText != self.lastSubtitleText:
+        if self.lastSubtitleText is not None and resultText != self.lastSubtitleText:
             # write old subtitle to file
             self.__write_subtitle(self.lastSubtitleText, self.lastSubtitleStartTime, self.spf * frameNum)
             # start a new subtitle
             self.subtitleNum += 1
-            self.lastSubtitleText = subtitleText
+            self.lastSubtitleText = resultText
             self.lastSubtitleStartTime = self.spf * frameNum
         else:
-            self.lastSubtitleText = subtitleText
+            self.lastSubtitleText = resultText
     
     def finish(self):
         self.__write_subtitle(self.lastSubtitleText, self.lastSubtitleStartTime, self.lastSubtitleStartTime * 100)
