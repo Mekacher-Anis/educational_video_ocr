@@ -1,18 +1,21 @@
-from . import models
-from post_processing.misspelling_detection import MisspellingDetection
-from post_processing.dict_correct import SymSpellCorrect
+import os
+import queue
+import random
+import time
 from typing import Dict, List
+
+import cv2
+import numpy as np
 from mmocr.ocr import MMOCR
 from mmocr.utils.bbox_utils import is_on_same_line
-import os
-import random
-import numpy as np
-import cv2
+from torch import LongTensor, multiprocessing
 from torch.nn.functional import softmax
-from transformers import BertForNextSentencePrediction, QDQBertForNextSentencePrediction, BertTokenizer
-from torch import multiprocessing, LongTensor
-import queue
-import time
+from transformers import (BertForNextSentencePrediction, BertTokenizer)
+
+from post_processing.dict_correct import SymSpellCorrect
+from post_processing.misspelling_detection import MisspellingDetection
+from . import models
+
 
 try:
     multiprocessing.set_start_method('spawn')
@@ -31,7 +34,7 @@ class OCRPipeline:
         merge_max_y_dist = 10,
         merge_min_y_overlap = .5,
         merge_min_confidence = .9,
-        use_bert_for_merging=True,
+        use_bert_for_merging=False,
         merge_pool_size = 4,
         bert_pool_size = 2,
         lang:str='en',
@@ -112,7 +115,7 @@ class OCRPipeline:
                         if not self.error_detection.check(box['text']):
                             wrong_count += 1
                             candidates = self.error_correction.get_candidates(box['text'])
-                            if candidates:
+                            if candidates and candidates[0].term != box['text']:
                                 corrected_count += 1
                                 box['text'] = candidates[0].term
                                 
@@ -125,7 +128,6 @@ class OCRPipeline:
             # print(f'Average words per frame : {avg}')
             # join words into lines if requested
             if self.merge_into_lines:
-                # return [OCRPipeline.merge_lines(x) for x in result]
                 return self.line_merging_pool.starmap(
                     OCRPipeline.merge_lines,
                     [(
@@ -176,7 +178,7 @@ class OCRPipeline:
     def is_next_sentence(
         input_queue: multiprocessing.Queue,
         bert_output_queue: multiprocessing.Queue,
-        conf_thresh=.9
+        conf_thresh=.8
     ):
         # we avoid creating bert models repeadtly upon calling this function 
         # by creating multiple processes that wait for input in the input queue

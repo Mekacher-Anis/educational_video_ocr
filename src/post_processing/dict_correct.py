@@ -12,7 +12,7 @@ class SymSpellCorrect(BaseCorrection):
         
         self.min_cor_length = min_cor_length
         self.dictionary_path = langConfig[lang]
-        self.sym_spell = SymSpell()
+        self.sym_spell = SymSpell(max_dictionary_edit_distance=5)
         self.sym_spell.load_dictionary(self.dictionary_path, 0, 1)
     
     def get_candidates(self, term: str, max_edit_dist=2):
