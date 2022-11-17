@@ -11,6 +11,7 @@ from pipelines.inference_pipeline import OCRPipeline
 from pipelines.test_pipeline import TestPipeline
 import logging
 from pprint import pprint
+import cv2
 
 load_dotenv()
 
@@ -57,6 +58,19 @@ def parse_args():
         help='Run error correction after text recognition.'
     )
     parser.add_argument(
+        '--scan-unique-frames-only',
+        action='store_true',
+        default=False,
+        help='Tries to find unique frames to scan based on the frame difference'
+    )
+    parser.add_argument(
+        '--unique-frames-detection-threshold',
+        default=.01,
+        type=float,
+        help="""Threshold to be used when considering if two frames are\
+        similar or not. Decrease it if not all frames are recognized.  (usual values between 0.01-0.1)"""
+    )
+    parser.add_argument(
         '--launcher',
         choices=['none', 'pytorch', 'slurm', 'mpi'],
         default='none',
@@ -67,6 +81,23 @@ def parse_args():
     if 'LOCAL_RANK' not in os.environ:
         os.environ['LOCAL_RANK'] = str(args.local_rank)
     return args
+
+def get_frames_with_big_changes(
+    reader: mmcv.video.VideoReader,
+    frames: list,
+    *,
+    threshold=.01,
+    method=cv2.TM_SQDIFF_NORMED):
+    last = reader[0]
+    frames_to_process = [0]
+    for f_idx in tqdm(frames):
+        f = reader[f_idx]
+        diff = cv2.matchTemplate(f, last, method)[0,0]
+        if diff > threshold:
+            frames_to_process.append(f_idx)
+            last = f
+    return frames_to_process
+    
 
 def inference(args):
     # configuration
@@ -95,6 +126,10 @@ def inference(args):
     # define the frame batches and run them through the pipeline
     skip_frames = int(reader.fps // inference_fps)
     frame_indexes = range(0, reader.frame_cnt, skip_frames)
+    if args.scan_unique_frames_only:
+        print(f'[INFO] Searching for unique frames...')
+        frame_indexes = get_frames_with_big_changes(reader, frame_indexes, threshold=args.unique_frames_detection_threshold)
+        print(f'[INFO] Number of frames to be processed : {len(frame_indexes)}')
     arr_chunks = [(i, i + batch_size)
                 for i in range(0, len(frame_indexes), batch_size)]
     
