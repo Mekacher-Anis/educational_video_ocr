@@ -136,12 +136,12 @@ def inference(args):
     print(f'[INFO] Using text det model: {det_model}\n[INFO] Using text rec model: {rec_model}\n[INFO] Processing {inference_fps} frames per one second of video\n[INFO] Batch Size: {batch_size}\n\n\n')
 
     with open(absolute_subtitle_path, mode='w+') as f:
-        sub = SubtitleWriter(f, inference_fps)
+        sub = SubtitleWriter(f, reader.fps)
         for start, end in tqdm(arr_chunks):
             batch = [reader[i] for i in frame_indexes[start:end]]
             result = pipeline(batch, show=False, img_out_dir='')
             for i, res in enumerate(result):
-                sub.write('\n'.join([e['text'] for e in res]), start+i)
+                sub.write('\n'.join([e['text'] for e in res]), frame_indexes[start+i])
         sub.finish()
     
     pipeline.print_metrics()
